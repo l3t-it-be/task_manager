@@ -4,3 +4,5 @@ pydantic>=2.10.5
 uvicorn>=0.34.0
 SQLAlchemy>=2.0.37
 alembic>=1.14.0
+starlette>=0.45.2
+python-slugify>=8.0.4
