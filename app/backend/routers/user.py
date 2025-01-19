@@ -8,12 +8,14 @@ from starlette import status
 
 from app.backend.db_depends import get_db
 from app.backend.models.user import User
-from app.backend.schemas.schemas import (
+from app.backend.models.task import Task
+from app.backend.schemas.user import (
     UserList,
     UserInDB,
     CreateUser,
     UpdateUser,
 )
+from app.backend.schemas.task import TaskList, TaskInDB
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -80,6 +82,7 @@ async def update_user(
 async def delete_user(user_id: int, db: Annotated[Session, Depends(get_db)]):
     result = db.scalar(select(User).where(User.id == user_id))
     if result:
+        db.execute(delete(Task).where(Task.user_id == user_id))
         db.execute(delete(User).where(User.id == user_id))
         db.commit()
         return {
@@ -88,3 +91,14 @@ async def delete_user(user_id: int, db: Annotated[Session, Depends(get_db)]):
         }
     else:
         raise HTTPException(status_code=404, detail='User was not found')
+
+
+@user_router.get('/{user_id}/tasks', response_model=TaskList)
+async def tasks_by_user_id(
+    user_id: int, db: Annotated[Session, Depends(get_db)]
+):
+    result = db.scalars(select(Task).where(Task.user_id == user_id)).all()
+    if not result:
+        return TaskList(tasks=[])
+    tasks = [TaskInDB.from_orm(task) for task in result]
+    return TaskList(tasks=tasks)

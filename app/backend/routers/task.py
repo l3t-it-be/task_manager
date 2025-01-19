@@ -8,7 +8,8 @@ from starlette import status
 
 from app.backend.db_depends import get_db
 from app.backend.models.task import Task
-from app.backend.schemas.schemas import (
+from app.backend.models.user import User
+from app.backend.schemas.task import (
     TaskList,
     TaskInDB,
     CreateTask,
@@ -26,7 +27,7 @@ async def all_tasks(db: Annotated[Session, Depends(get_db)]):
     result = db.scalars(select(Task)).all()
     if not result:
         return TaskList(tasks=[])
-    tasks = [TaskInDB.model_validate(task) for task in result]
+    tasks = [TaskInDB.from_orm(task) for task in result]
     return TaskList(tasks=tasks)
 
 
@@ -34,18 +35,21 @@ async def all_tasks(db: Annotated[Session, Depends(get_db)]):
 async def task_by_id(task_id: int, db: Annotated[Session, Depends(get_db)]):
     result = db.scalar(select(Task).where(Task.id == task_id))
     if result:
-        return TaskInDB.model_validate(result)
+        return TaskInDB.from_orm(result)
     else:
         raise HTTPException(status_code=404, detail='Task was not found')
 
 
 @task_router.post('/create_task')
 async def create_task(
-    task: CreateTask, db: Annotated[Session, Depends(get_db)]
+    task: CreateTask, user_id: int, db: Annotated[Session, Depends(get_db)]
 ):
     try:
         logger.info(f'Creating task with data: {task.model_dump()}')
-        new_task = Task(**task.model_dump())
+        user = db.scalar(select(User).where(User.id == user_id))
+        if not user:
+            raise HTTPException(status_code=404, detail='User was not found')
+        new_task = Task(**task.model_dump(), user_id=user_id)
         db.add(new_task)
         db.commit()
         db.refresh(new_task)
